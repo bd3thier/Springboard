@@ -1,0 +1,138 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# # JSON Miniproject
+# ****
+# + Draw insights from a World Bank dataset from 
+# + a school quality improvement project in Ethiopia   
+# ****
+# 
+# 
+
+# ## Imports for Python, Pandas
+
+# In[1]:
+
+
+import pandas as pd
+import json
+from pandas.io.json import json_normalize
+import numpy as np
+
+
+# ## Problem 1
+# ****
+# Find the 10 countries with most projects
+# ****
+# We assume one line is one project since they have unique ID numbers, therefore there is no need to normalize the JSON file.
+
+# In[2]:
+
+
+# Load file as Pandas dataframe
+df = pd.read_json('data/world_bank_projects.json')
+df.head()
+
+
+# In[3]:
+
+
+# Group by country, count projects, and return a series sorted by values
+df_grouped = df.groupby('countryname')['_id'].count()
+df_grouped.sort_values(ascending=False).head(10)
+
+
+# ## Problem 2
+# ****
+# Find the top 10 major project themes (using column 'mjtheme_namecode')
+# ****
+
+# In[4]:
+
+
+# load json as string
+file = 'data/world_bank_projects.json'
+json_format = json.load((open(file)))
+
+
+# In[5]:
+
+
+# Normalize columns of interest and populate the table created from nested elements
+df_norm = json_normalize(json_format, 'mjtheme_namecode', ['countryname', ['_id', '$oid']])
+df_norm.head(20)
+
+
+# In[6]:
+
+
+# Get theme names from codes
+theme_names = json_normalize(json_format, 'mjtheme_namecode').sort_values('code').replace(r'^\s*$', np.nan, regex=True)
+theme_names = theme_names.dropna().drop_duplicates()
+dict_names = dict(zip(list(theme_names.code), list(theme_names.name)))
+print(dict_names)
+
+
+# In[7]:
+
+
+# Group by code, aggregate, sort and print the ten major themes
+df_grouped2 = df_norm.groupby('code')['_id.$oid'].count()
+top_codes = df_grouped2.sort_values(ascending=False).head(10)
+print(top_codes)
+
+
+# In[8]:
+
+
+# Add the names of the themes
+top_codes = top_codes.reset_index()
+top_codes['theme name'] = top_codes['code'].map(dict_names)
+top_codes = top_codes.rename(columns={'_id.$oid': 'number of projects', 'code': 'theme code'})
+print(top_codes)
+
+
+# ## Problem 3
+# ****
+# In 2. above you will notice that some entries have only the code and the name is missing. Create a dataframe with the missing names filled in
+# ****
+# Note: This has been done for the top ten table above, but I will fill the missing names for the entire dataframe df_norm with a different method for the sake of the exercise
+
+# In[12]:
+
+
+# Sort by theme code and rename project ID column
+df_norm_full = df_norm.sort_values(by = 'code').rename(columns={'_id.$oid': 'project ID', 'code': 'theme code', 'name': 'theme name'}).set_index('project ID')
+df_norm_full = df_norm_full.replace(r'^\s*$', np.nan, regex=True).fillna(method = 'ffill')
+df_norm_full.head()
+
+
+# In[10]:
+
+
+#To verify the fill is correct, compile the count of 'theme code' and 'theme name'
+df_grouped3 = df_norm_full.groupby('theme code')['countryname'].count()
+df_grouped4 = df_norm_full.groupby('theme name')['countryname'].count()
+
+df_grouped3 = df_grouped3.reset_index()
+df_grouped4 = df_grouped4.reset_index()
+
+df_grouped3['theme name'] = df_grouped3['theme code'].map(dict_names)
+df_grouped3 = df_grouped3.sort_values('theme name')
+
+
+# In[11]:
+
+
+# Compare the count from 'theme code' and 'theme name'
+count_code = list(df_grouped3['countryname'])
+count_name = list(df_grouped4['countryname'])
+
+print(count_code == count_name)
+
+
+# In[ ]:
+
+
+
+
